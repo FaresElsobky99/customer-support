@@ -1,0 +1,9 @@
+Customers with active status can create support tickets.
+
+Inactive customers should be redirected to account support.
+
+High-priority issues:
+- payment failure
+- account locked
+- security concern  
+
