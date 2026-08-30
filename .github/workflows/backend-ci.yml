@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
@@ -8,7 +8,11 @@ on:
     branches: ["main"]
 
 jobs:
-  test-and-build:
+
+  # =========================================================
+  # 1. UNIT + API TESTS
+  # =========================================================
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,12 +28,86 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run tests
+      - name: Run unit and API tests
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run pytest tests/ -m "not integration"
+
+
+  # =========================================================
+  # 2. INTEGRATION TESTS
+  # =========================================================
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run PostgreSQL integration tests
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: uv run pytest
+        run: uv run pytest tests/integration/ -m integration
+
+
+  # =========================================================
+  # 3. BUILD DOCKER IMAGE
+  # =========================================================
+  build:
+    runs-on: ubuntu-latest
+    needs: integration-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t customer-support-api .
+
+
+  # =========================================================
+  # 4. PUSH IMAGE TO GITHUB CONTAINER REGISTRY
+  # =========================================================
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghcr.io/${{ github.repository_owner }}/customer-support-api:latest \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push \
+            ghcr.io/${{ github.repository_owner }}/customer-support-api:latest
