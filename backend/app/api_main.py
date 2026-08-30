@@ -12,6 +12,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:4200",
+        "https://customer-support-frontend.thankfulisland-db1dafbf.francecentral.azurecontainerapps.io",
     ],
     allow_credentials=True,
     allow_methods=["*"],
