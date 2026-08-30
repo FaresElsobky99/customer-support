@@ -25,6 +25,9 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: uv run pytest
 
       - name: Build Docker image
