@@ -1,0 +1,20 @@
+@if (authService.isAuthenticated()) {
+  <header class="navbar">
+    <div class="navbar__content">
+      <a class="navbar__brand" routerLink="/dashboard">Support Desk</a>
+
+      <nav aria-label="Main navigation">
+        <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+        <a routerLink="/profile" routerLinkActive="active">Profile</a>
+        <a routerLink="/tickets" routerLinkActive="active">Tickets</a>
+        @if (authService.isAdmin()) {
+          <a routerLink="/customers" routerLinkActive="active">Customers</a>
+        }
+        @if (customerName()) {
+          <span class="navbar__user">Hello, {{ customerName() }}</span>
+        }
+        <button class="link-button" type="button" (click)="authService.logout()">Logout</button>
+      </nav>
+    </div>
+  </header>
+}

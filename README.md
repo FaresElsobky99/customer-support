@@ -67,7 +67,7 @@ tests/
 ├── test_customer.py
 ├── test_health.py
 └── test_tickets.py
-frontend/                          # Reserved for a future frontend
+frontend/                          # Angular customer-support frontend
 .github/workflows/backend-ci.yml   # Test, build, and publish workflow
 client.py                          # Interactive MCP client
 chatbot.py                         # Gemini + MCP chatbot
@@ -83,6 +83,7 @@ The root `db.py` and `customers.db` files are legacy SQLite development artifact
 ## Requirements
 
 - Python 3.11 or newer
+- Node.js 24.15 or newer and npm (for the Angular frontend)
 - uv for dependency and command execution
 - A reachable PostgreSQL database, including Supabase PostgreSQL
 - Docker and Docker Compose only if running the containerized REST API
@@ -154,6 +155,7 @@ The API is available at `http://127.0.0.1:8000`.
 | `GET` | `/customers` | Admin Bearer JWT | List every customer |
 | `GET` | `/tickets` | Bearer JWT | List the authenticated customer's tickets |
 | `POST` | `/tickets` | Bearer JWT | Create a ticket for the authenticated customer |
+| `PATCH` | `/tickets/{ticket_id}/status` | Admin Bearer JWT | Open or close a ticket |
 
 Login request:
 
@@ -176,6 +178,39 @@ Create-ticket request:
 {
   "issue": "My account is locked"
 }
+```
+
+Administrators receive all customers' tickets from `GET /tickets`. Regular
+customers receive only their own tickets. Administrators can change a ticket's
+status with:
+
+```json
+{
+  "status": "open"
+}
+```
+
+The other accepted status is `closed`.
+
+## Run the Angular frontend
+
+With the REST API running at `http://localhost:8000`, open another terminal:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Open `http://localhost:4200`. The backend allows this development origin through
+its minimal CORS configuration. The frontend API base URL is defined once in
+`frontend/src/environments/environment.ts`.
+
+Build the production bundle with:
+
+```bash
+cd frontend
+npm run build
 ```
 
 ## Run the MCP server
@@ -230,7 +265,8 @@ Protected actions are written to `audit_logs`. Currently audited operations are:
 - `get_customer`;
 - `create_ticket`;
 - `list_tickets`;
-- `list_all_customers`.
+- `list_all_customers`;
+- `update_ticket_status`.
 
 ## Tests
 

@@ -1,0 +1,109 @@
+<section>
+  <div class="page-heading">
+    <p class="eyebrow">Support</p>
+    <h1>Tickets</h1>
+    <p>Review your existing requests or create a new support ticket.</p>
+  </div>
+
+  <div id="create-ticket" class="card create-card">
+    <h2>Create a ticket</h2>
+    <form (ngSubmit)="createTicket()">
+      <label for="issue">Issue</label>
+      <textarea
+        id="issue"
+        name="issue"
+        rows="4"
+        minlength="5"
+        maxlength="1000"
+        placeholder="Describe the issue you need help with"
+        [(ngModel)]="issue"
+        required
+      ></textarea>
+
+      @if (createMessage()) {
+        <p class="message message--success" role="status">{{ createMessage() }}</p>
+      }
+      @if (createError()) {
+        <p class="message message--error" role="alert">{{ createError() }}</p>
+      }
+
+      <button class="button button--primary" type="submit" [disabled]="creating()">
+        {{ creating() ? 'Creating…' : 'Create ticket' }}
+      </button>
+    </form>
+  </div>
+
+  <div class="tickets-section">
+    <h2>{{ authService.isAdmin() ? 'All tickets' : 'Your tickets' }}</h2>
+
+    @if (actionMessage()) {
+      <p class="message message--success" role="status">{{ actionMessage() }}</p>
+    }
+    @if (actionError()) {
+      <p class="message message--error" role="alert">{{ actionError() }}</p>
+    }
+
+    @if (loading()) {
+      <p class="loading-text">Loading tickets…</p>
+    } @else if (listError()) {
+      <p class="message message--error" role="alert">{{ listError() }}</p>
+    } @else if (tickets().length === 0) {
+      <div class="empty-state">No tickets found.</div>
+    } @else {
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket ID</th>
+              @if (authService.isAdmin()) {
+                <th>Customer ID</th>
+              }
+              <th>Issue</th>
+              <th>Status</th>
+              @if (authService.isAdmin()) {
+                <th>Action</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (ticket of tickets(); track ticket.ticket_id) {
+              <tr>
+                <td>#{{ ticket.ticket_id }}</td>
+                @if (authService.isAdmin()) {
+                  <td>{{ ticket.customer_id }}</td>
+                }
+                <td>{{ ticket.issue }}</td>
+                <td>
+                  <span class="badge">{{ ticket.status }}</span>
+                </td>
+                @if (authService.isAdmin()) {
+                  <td>
+                    @if (ticket.status.toLowerCase() === 'open') {
+                      <button
+                        class="button button--small button--secondary"
+                        type="button"
+                        [disabled]="updatingTicketId() === ticket.ticket_id"
+                        (click)="updateStatus(ticket, 'closed')"
+                      >
+                        {{ updatingTicketId() === ticket.ticket_id ? 'Updating…' : 'Close' }}
+                      </button>
+                    } @else {
+                      <button
+                        class="button button--small button--secondary"
+                        type="button"
+                        [disabled]="updatingTicketId() === ticket.ticket_id"
+                        (click)="updateStatus(ticket, 'open')"
+                      >
+                        {{ updatingTicketId() === ticket.ticket_id ? 'Updating…' : 'Open' }}
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>

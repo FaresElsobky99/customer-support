@@ -1,0 +1,41 @@
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.action-card {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.action-card:hover {
+  border-color: #6aa9e9;
+  transform: translateY(-2px);
+}
+
+.action-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.action-card p {
+  margin: 0;
+}
+
+.status-line {
+  background: #e9f8ef;
+  border-radius: 999px;
+  color: #1b6840;
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  white-space: nowrap;
+}
+
+.logout-button {
+  margin-top: 1.5rem;
+}

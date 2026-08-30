@@ -1,0 +1,42 @@
+<section>
+  <div class="page-heading">
+    <p class="eyebrow">Administration</p>
+    <h1>Customers</h1>
+    <p>All customer accounts in the support system.</p>
+  </div>
+
+  @if (loading) {
+    <p class="loading-text">Loading customers…</p>
+  } @else if (errorMessage) {
+    <p class="message message--error" role="alert">{{ errorMessage }}</p>
+  } @else if (customers.length === 0) {
+    <div class="empty-state">No customers found.</div>
+  } @else {
+    <div class="table-wrapper customers-table">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (customer of customers; track customer.id) {
+            <tr>
+              <td>{{ customer.id }}</td>
+              <td>{{ customer.name }}</td>
+              <td>{{ customer.email }}</td>
+              <td>
+                <span class="badge">{{ customer.status }}</span>
+              </td>
+              <td>{{ customer.role }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

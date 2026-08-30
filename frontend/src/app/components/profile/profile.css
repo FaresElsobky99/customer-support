@@ -1,0 +1,23 @@
+.details-list {
+  margin: 1.5rem 0 0;
+}
+
+.details-list div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 1rem;
+  padding: 0.9rem 0;
+}
+
+.details-list div + div {
+  border-top: 1px solid #e5eaf0;
+}
+
+dt {
+  color: #6a7886;
+  font-weight: 650;
+}
+
+dd {
+  margin: 0;
+}

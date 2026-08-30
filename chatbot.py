@@ -107,27 +107,27 @@ async def main():
         # =====================================================
 
         system_context = f"""
-{support_prompt}
+            {support_prompt}
 
-SUPPORT POLICY:
-{support_policy}
+            SUPPORT POLICY:
+            {support_policy}
 
-AUTHENTICATION:
-Customer ID: {customer_id}
-Role: {role}
+            AUTHENTICATION:
+            Customer ID: {customer_id}
+            Role: {role}
 
-RULES:
-- The user is already authenticated.
-- Never ask for JWT tokens or passwords.
-- Customers can access only their own data.
-- Admins can access all customers.
-- Only admins can use admin operations.
-- If a non-admin asks for admin data, explain that permission is denied.
-- If the user wants to create a ticket without providing an issue, ask for it.
-- Do not call get_customer unless customer information is needed.
-- Use create_ticket when the issue is known.
-- Use list_tickets when the user asks about tickets.
-"""
+            RULES:
+            - The user is already authenticated.
+            - Never ask for JWT tokens or passwords.
+            - Customers can access only their own data.
+            - Admins can access all customers.
+            - Only admins can use admin operations.
+            - If a non-admin asks for admin data, explain that permission is denied.
+            - If the user wants to create a ticket without providing an issue, ask for it.
+            - Do not call get_customer unless customer information is needed.
+            - Use create_ticket when the issue is known.
+            - Use list_tickets when the user asks about tickets.
+        """
 
         # =====================================================
         # DISCOVER MCP TOOLS

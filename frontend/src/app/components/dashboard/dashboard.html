@@ -1,0 +1,44 @@
+<section>
+  <div class="page-heading page-heading--row">
+    <div>
+      <p class="eyebrow">Overview</p>
+      <h1>Dashboard</h1>
+      <p>Choose an area below to manage your support account.</p>
+    </div>
+    <p class="status-line">
+      API status: <strong>{{ apiStatus }}</strong>
+    </p>
+  </div>
+
+  <div class="dashboard-grid">
+    <a class="card action-card" routerLink="/profile">
+      <h2>Profile</h2>
+      <p>View your account information and current status.</p>
+    </a>
+
+    <a class="card action-card" routerLink="/tickets">
+      <h2>Tickets</h2>
+      <p>View all of your current support tickets.</p>
+    </a>
+
+    <a class="card action-card" routerLink="/tickets" fragment="create-ticket">
+      <h2>Create ticket</h2>
+      <p>Send a new issue to the support team.</p>
+    </a>
+
+    @if (authService.isAdmin()) {
+      <a class="card action-card" routerLink="/customers">
+        <h2>Customers</h2>
+        <p>View all customer accounts as an administrator.</p>
+      </a>
+    }
+  </div>
+
+  <button
+    class="button button--secondary logout-button"
+    type="button"
+    (click)="authService.logout()"
+  >
+    Logout
+  </button>
+</section>

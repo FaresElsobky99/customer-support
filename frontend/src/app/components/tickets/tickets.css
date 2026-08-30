@@ -1,0 +1,22 @@
+.create-card {
+  margin-top: 1.5rem;
+}
+
+.create-card h2,
+.tickets-section h2 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+
+form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+form .button {
+  justify-self: start;
+}
+
+.tickets-section {
+  margin-top: 2rem;
+}
