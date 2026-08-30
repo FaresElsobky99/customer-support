@@ -1,3 +1,3 @@
 export const environment = {
-  apiUrl: 'http://localhost:8000',
+  apiUrl: 'https://customer-support-backend.thankfulisland-db1dafbf.francecentral.azurecontainerapps.io',
 };
