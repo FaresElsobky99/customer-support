@@ -368,30 +368,52 @@ The database integration test verifies that the configured server is PostgreSQL.
 
 These credentials are test fixtures only. Do not use them in a production database. `test_create_ticket` inserts a ticket and audit records are created by protected service calls, so run the suite against a test database rather than production.
 
-## Docker
+## Continuous integration / deployment
 
-Build and run the REST API with Docker Compose:
+`.github/workflows/backend-ci.yml` runs on pushes and pull requests to `main`:
+
+| Job | What |
+| --- | --- |
+| `test` | `pytest tests/ -m "not integration"` |
+| `integration-test` | `pytest tests/integration/ -m integration` (LLM smoke tests self-skip without keys) |
+| `frontend-build` | `npm ci && npm run build` for the Angular app (catches production-only breakage) |
+| `images` | builds the backend and frontend container images for **`linux/amd64`**; on a push to `main`, pushes both to GHCR |
+
+Published images (on merge to `main`):
+
+- `ghcr.io/fareselsobky99/customer-support-backend:latest` (and `:<commit-sha>`)
+- `ghcr.io/fareselsobky99/customer-support-frontend:latest` (and `:<commit-sha>`)
+
+Required repository secrets: `DATABASE_URL`, `JWT_SECRET`. Optional: `GEMINI_API_KEY`,
+`OPENROUTER_API_KEY` (only used to run the live LLM integration tests).
+
+### Deploying to Azure Container Apps
+
+The images target `linux/amd64` (what Azure Container Apps runs). **Do not `docker push`
+from an Apple-Silicon Mac** — that produces an `arm64` image that fails on Azure with
+`exec format error`. Let CI build and push, or build locally with
+`docker buildx build --platform linux/amd64 --push ...`.
+
+- **Backend** container needs env vars set in Azure: `DATABASE_URL`, `JWT_SECRET`, and (for
+  `/agent/chat`) `LLM_PROVIDER` + the matching key (`GEMINI_API_KEY` or
+  `OPENROUTER_API_KEY`, plus `OPENROUTER_MODEL`). It listens on port `8000`.
+- **Frontend** container is nginx serving the production Angular bundle, which is compiled
+  with the backend URL from `frontend/src/environments/environment.ts` — update that file
+  and rebuild if the backend URL changes. It listens on port `80`.
+- GHCR packages are private by default; give the Container App registry credentials (a
+  GitHub PAT with `read:packages`) or make the packages public.
+- After CI pushes `:latest`, trigger a new revision in Azure (or enable "latest" image
+  auto-update) to pick it up.
+
+## Docker (local)
 
 ```bash
 docker compose up --build
 ```
 
-The compose service reads `.env`, exposes port `8000`, and checks `/health` every 30 seconds.
+Runs the backend (`:8000`, reads `.env`) and the frontend (`:4200` → nginx `:80`). The
+compose frontend serves the **production** bundle, so it points at the Azure backend, not
+your local one — for local full-stack dev run the backend with uvicorn and the frontend
+with `npm start` instead (see "Run the Angular frontend").
 
-Stop it with:
-
-```bash
-docker compose down
-```
-
-## Continuous integration
-
-The GitHub Actions workflow runs on pushes and pull requests to `main`:
-
-1. install Python 3.11 and dependencies with uv;
-2. run tests excluding the explicit integration marker;
-3. run the PostgreSQL integration test;
-4. build the Docker image;
-5. on pushes to `main`, publish `ghcr.io/fareselsobky99/customer-support-api:latest`.
-
-The workflow requires repository secrets named `DATABASE_URL` and `JWT_SECRET`.
+Stop with `docker compose down`.

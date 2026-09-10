@@ -1,23 +1,24 @@
-name: Backend CI/CD
+name: CI/CD
 
 on:
   push:
     branches: ["main"]
-
   pull_request:
     branches: ["main"]
 
-jobs:
+env:
+  # GHCR image names must be lowercase.
+  BACKEND_IMAGE: ghcr.io/fareselsobky99/customer-support-backend
+  FRONTEND_IMAGE: ghcr.io/fareselsobky99/customer-support-frontend
 
+jobs:
   # =========================================================
-  # 1. UNIT + API TESTS
+  # 1. Backend unit + API tests
   # =========================================================
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -34,17 +35,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: uv run pytest tests/ -m "not integration"
 
-
   # =========================================================
-  # 2. INTEGRATION TESTS
+  # 2. Backend integration tests (live DB; LLM tests self-skip
+  #    unless GEMINI_API_KEY / OPENROUTER_API_KEY are set)
   # =========================================================
   integration-test:
     runs-on: ubuntu-latest
     needs: test
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -55,68 +54,81 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run PostgreSQL integration tests
+      - name: Run integration tests
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: uv run pytest tests/integration/ -m integration
 
-
   # =========================================================
-  # 3. BUILD DOCKER IMAGE
+  # 3. Frontend production build (catches prod-only breakage)
   # =========================================================
-  build:
+  frontend-build:
     runs-on: ubuntu-latest
-    needs: integration-test
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t customer-support-api .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build (production)
+        working-directory: frontend
+        run: npm run build -- --configuration=production
 
   # =========================================================
-  # 4. PUSH IMAGE TO GITHUB CONTAINER REGISTRY
+  # 4. Build container images (linux/amd64 for Azure Container
+  #    Apps). Push to GHCR only on push to main.
   # =========================================================
-  publish:
+  images:
     runs-on: ubuntu-latest
-    needs: build
-
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
+    needs: [test, integration-test, frontend-build]
     permissions:
       contents: read
       packages: write
-
+    env:
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: env.PUSH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build backend image
-        run: |
-          docker build \
-            -t ghcr.io/fareselsobky99/customer-support-backend:latest \
-            .
+      - name: Backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
-      - name: Build frontend image
-        run: |
-          docker build \
-            -t ghcr.io/fareselsobky99/customer-support-frontend:latest \
-            ./frontend
-
-      - name: Push backend image
-        run: |
-          docker push ghcr.io/fareselsobky99/customer-support-backend:latest
-
-      - name: Push frontend image
-        run: |
-          docker push ghcr.io/fareselsobky99/customer-support-frontend:latest
+      - name: Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          platforms: linux/amd64
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
