@@ -29,8 +29,15 @@ DEFAULT_MODEL = "gemini-3.6-flash"
 class GeminiClient:
     def __init__(self, model: str | None = None) -> None:
         self._model = model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
-        # Reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment.
-        self._client = genai.Client()
+        self._client: genai.Client | None = None
+
+    def _get_client(self) -> genai.Client:
+        # Built lazily: genai.Client() validates GEMINI_API_KEY / GOOGLE_API_KEY at
+        # construction, and this client is created via a FastAPI dependency that must not
+        # fail just because a different provider is configured.
+        if self._client is None:
+            self._client = genai.Client()
+        return self._client
 
     async def generate(
         self,
@@ -48,7 +55,7 @@ class GeminiClient:
         )
 
         try:
-            response = await self._client.aio.models.generate_content(
+            response = await self._get_client().aio.models.generate_content(
                 model=self._model,
                 contents=_to_gemini_contents(messages),
                 config=config,

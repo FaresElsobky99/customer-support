@@ -187,15 +187,21 @@ def test_chat_endpoint_requires_auth():
 
 
 def test_chat_endpoint_rejects_oversized_history():
-    client = TestClient(app)
-    token = create_token(7, "customer")
-    huge = [{"role": "user", "content": "x"} for _ in range(500)]
-    response = client.post(
-        "/agent/chat",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"message": "hi", "history": huge},
+    app.dependency_overrides[get_runner] = lambda: AgentRunner(
+        FakeLLM([LLMResponse(text="unused", tool_calls=())]), FakeExecutor()
     )
-    assert response.status_code == 422
+    try:
+        client = TestClient(app)
+        token = create_token(7, "customer")
+        huge = [{"role": "user", "content": "x"} for _ in range(500)]
+        response = client.post(
+            "/agent/chat",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"message": "hi", "history": huge},
+        )
+        assert response.status_code == 422
+    finally:
+        app.dependency_overrides.pop(get_runner, None)
 
 
 def test_mcp_executor_is_error_only_on_error_key():
