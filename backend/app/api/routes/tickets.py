@@ -6,10 +6,10 @@ from pydantic import BaseModel
 from backend.app.api.dependencies import get_current_user
 from backend.app.services.ticket_service import (
     create_ticket,
+    get_ticket,
     list_tickets,
     update_ticket_status,
 )
-
 
 router = APIRouter(
     prefix="/tickets",
@@ -26,12 +26,28 @@ class TicketStatusRequest(BaseModel):
 
 
 @router.get("")
-def get_tickets(user: dict = Depends(get_current_user)):
+def get_tickets(user: dict = Depends(get_current_user), status: str | None = None):
     return list_tickets(
         customer_id=user["customer_id"],
         actor_customer_id=user["customer_id"],
         actor_role=user["role"],
+        status=status,
     )
+
+
+@router.get("/{ticket_id}")
+def get_one_ticket(ticket_id: int, user: dict = Depends(get_current_user)):
+    result = get_ticket(
+        ticket_id=ticket_id,
+        actor_customer_id=user["customer_id"],
+        actor_role=user["role"],
+    )
+
+    if "error" in result:
+        status_code = 404 if result["error"] == "Ticket not found" else 403
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    return result
 
 
 @router.post("")

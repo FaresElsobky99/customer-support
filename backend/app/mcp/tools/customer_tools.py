@@ -1,10 +1,13 @@
 from backend.app.auth.authorization import authorize_customer
+from backend.app.auth.jwt import verify_token
 from backend.app.services import customer_service, ticket_service
 from backend.app.validation.schemas import (
     ValidationError,
     validate_customer_id,
     validate_customer_name,
+    validate_ticket_id,
     validate_ticket_issue,
+    validate_ticket_status,
 )
 
 
@@ -57,11 +60,13 @@ def register_customer_tools(mcp) -> None:
         )
 
     @mcp.tool()
-    def list_tickets(token: str, customer_id: int) -> dict:
-        """List support tickets for a customer if authorized."""
+    def list_tickets(token: str, customer_id: int, status: str | None = None) -> dict:
+        """List support tickets for a customer, optionally filtered by status."""
 
         try:
             customer_id = validate_customer_id(customer_id)
+            if status is not None:
+                status = validate_ticket_status(status)
         except ValidationError as error:
             return {"error": str(error)}
 
@@ -69,4 +74,21 @@ def register_customer_tools(mcp) -> None:
         if auth_error:
             return auth_error
 
-        return ticket_service.list_tickets(customer_id, user["customer_id"], user["role"])
+        return ticket_service.list_tickets(
+            customer_id, user["customer_id"], user["role"], status=status
+        )
+
+    @mcp.tool()
+    def get_ticket(token: str, ticket_id: int) -> dict:
+        """Get one support ticket by id, if the caller is allowed to see it."""
+
+        try:
+            ticket_id = validate_ticket_id(ticket_id)
+        except ValidationError as error:
+            return {"error": str(error)}
+
+        user = verify_token(token)
+        if user is None:
+            return {"error": "Invalid or expired token"}
+
+        return ticket_service.get_ticket(ticket_id, user["customer_id"], user["role"])

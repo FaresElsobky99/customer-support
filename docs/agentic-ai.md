@@ -296,6 +296,26 @@ session store — which means it works correctly even when Azure runs more than 
 and nothing leaks on redeploy. The tradeoff is a larger request body as the conversation
 grows; the client can truncate old turns.
 
+### Role-aware tools, prompt, and knowledge
+
+`ServiceToolExecutor.tool_defs(auth)` and `assemble_system_prompt(auth)` both branch on
+`auth.is_admin`. A customer gets `get_customer` / `create_ticket` / `list_tickets` /
+`get_ticket`; an admin additionally gets `update_ticket_status` and `list_all_customers`,
+plus admin-flavoured instructions (triage, close-with-reason). The knowledge base
+(`knowledge/faq.md`, also MCP `file://faq`) is folded into every system prompt — editing
+that file changes what the agent knows with no code change.
+
+### Guardrails on the runtime path
+
+- **Rate limit** — `backend/app/agent/ratelimit.py`, a per-customer token bucket, so one
+  authenticated caller can't drain the LLM quota. In-process (per replica).
+- **Step cap** — `AgentRunner(max_steps=…)`; on the final step it stops *without* running
+  more tools, so it never performs a side effect it then reports as "couldn't finish".
+- **Error handling** — every provider failure (rate limit, 5xx, retired model, timeout)
+  becomes a friendly reply with a `stopped_reason`, never a 500.
+- **Observability** — one JSON line per run (`backend/app/agent/observability.py`):
+  customer, provider/model, tool calls, steps, outcome, duration. No message content.
+
 ---
 
 ## 9. Dev agent vs product agent — the trust boundary

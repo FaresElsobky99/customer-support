@@ -49,6 +49,13 @@ agent (backend/app/agent/)     ─┘      │
   input, check auth, call a service, format the result. Business rules live in the service.
 - `backend/app/agent/` is a **third consumer** of the service layer. It calls services
   directly (not over MCP) — see `docs/agentic-ai.md` §8.
+- The agent's tool set, system prompt, and knowledge base are role-aware:
+  `ServiceToolExecutor.tool_defs` and `assemble_system_prompt` branch on `auth.is_admin`
+  (admins additionally get `update_ticket_status` / `list_all_customers`).
+- `POST /agent/chat` is rate-limited per customer (`backend/app/agent/ratelimit.py`) and
+  logs one JSON line per run (`backend/app/agent/observability.py`).
+- The knowledge base is `knowledge/faq.md` — served as MCP `file://faq` and folded into
+  the agent prompt. Edit it to change what the agent knows; no code change needed.
 
 ## Conventions
 
@@ -111,6 +118,7 @@ agent (backend/app/agent/)     ─┘      │
   (repository → service → MCP tool → REST route → validation → tests).
 - `.claude/skills/run-backend` — running and curling the backend locally.
 - `.claude/skills/db-schema` — the PostgreSQL schema (no migrations in the repo).
+- `.claude/skills/deploy` — CI/CD pipeline, GHCR images, Azure Container Apps deploy.
 - `.claude/agents/test-verifier` — runs the fast test suite and diagnoses failures.
 
 `skills-lock.json` at the root is a separate mechanism (vendored Supabase agent-skills),

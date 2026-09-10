@@ -21,9 +21,35 @@ Steps:
 """
 
 
+def build_triage_prompt(issue: str) -> str:
+    """A workflow prompt for an administrator triaging an incoming ticket."""
+
+    return f"""
+You are helping a support administrator triage a ticket.
+
+Ticket:
+{issue}
+
+Produce:
+1. Category - one of: billing, account, technical, security, other.
+2. Priority - high if it is a payment failure, a locked account, or a security concern;
+   otherwise normal.
+3. Suggested next action - reply and close, reply and keep open, or escalate.
+4. A one-paragraph draft reply to the customer.
+
+Base priority and category on the support policy and knowledge base, not guesses.
+"""
+
+
 def register_prompts(mcp) -> None:
     @mcp.prompt()
     def support_prompt(issue: str) -> str:
         """Create a customer support workflow prompt."""
 
         return build_support_prompt(issue)
+
+    @mcp.prompt()
+    def triage_prompt(issue: str) -> str:
+        """Create a ticket-triage workflow prompt for an administrator."""
+
+        return build_triage_prompt(issue)

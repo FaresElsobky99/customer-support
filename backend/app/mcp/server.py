@@ -6,7 +6,6 @@ from backend.app.mcp.tools.admin_tools import register_admin_tools
 from backend.app.mcp.tools.auth_tools import register_auth_tools
 from backend.app.mcp.tools.customer_tools import register_customer_tools
 
-
 mcp = MCPServer("Customer Support")
 
 register_auth_tools(mcp)

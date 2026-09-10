@@ -80,6 +80,34 @@ def test_list_tickets_normalizes_status_values():
     )
 
 
+def test_list_tickets_status_filter():
+    response = client.get(
+        "/tickets?status=open",
+        headers={"Authorization": f"Bearer {get_token()}"},
+    )
+
+    assert response.status_code == 200
+    assert all(t["status"] == "open" for t in response.json()["tickets"])
+
+
+def test_get_one_ticket_own_and_foreign():
+    session = get_customer_session()
+    ticket_id = ticket_repository.create(session["customer_id"], "Ticket for the get-one test")
+
+    own = client.get(
+        f"/tickets/{ticket_id}",
+        headers={"Authorization": f"Bearer {session['token']}"},
+    )
+    assert own.status_code == 200
+    assert own.json()["ticket_id"] == ticket_id
+
+    missing = client.get(
+        "/tickets/99999999",
+        headers={"Authorization": f"Bearer {session['token']}"},
+    )
+    assert missing.status_code == 404
+
+
 def test_customer_lists_only_their_own_tickets():
     session = get_customer_session()
     customer_ticket_id = ticket_repository.create(

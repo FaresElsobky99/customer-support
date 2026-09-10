@@ -10,17 +10,24 @@ This is the identity-injection logic that used to be inline in ``chatbot.py``.
 from __future__ import annotations
 
 import json
-from typing import Iterable
+from collections.abc import Iterable
 
 from backend.app.agent.auth import AuthContext
 from backend.app.agent.types import ToolCall, ToolDef, ToolResult
 
 # Tools that take a JWT the model must never see.
-PROTECTED_TOOLS = {"get_customer", "create_ticket", "list_tickets", "list_all_customers"}
+PROTECTED_TOOLS = {
+    "get_customer",
+    "create_ticket",
+    "list_tickets",
+    "get_ticket",
+    "list_all_customers",
+    "update_ticket_status",
+}
 # Tools scoped to a single customer whose id the app injects.
 CUSTOMER_SCOPED_TOOLS = {"get_customer", "create_ticket", "list_tickets"}
 # Tools only an admin may call.
-ADMIN_TOOLS = {"list_all_customers"}
+ADMIN_TOOLS = {"list_all_customers", "update_ticket_status"}
 
 
 def _is_error_payload(text: str) -> bool:

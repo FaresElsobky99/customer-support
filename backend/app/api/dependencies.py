@@ -3,7 +3,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.app.auth.jwt import verify_token
 
-
 security = HTTPBearer()
 
 
