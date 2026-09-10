@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run python -m backend.app.main)",
+      "Bash(uv run python client.py)",
+      "Bash(uv run python -c:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(curl http://127.0.0.1:8000/*)",
+      "Bash(curl http://localhost:8000/*)",
+      "Bash(cd frontend && npm run build)",
+      "Bash(npm run build)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.development)",
+      "Read(./.env.production)"
+    ]
+  }
+}

@@ -5,7 +5,11 @@ A customer-support backend that exposes the same PostgreSQL-backed business logi
 - an MCP server for AI clients and agents;
 - a FastAPI REST API;
 - an interactive MCP client;
-- a Gemini-powered support chatbot.
+- a Gemini-powered support chatbot;
+- a customer-facing self-service **agent** at `POST /agent/chat` (`backend/app/agent/`).
+
+See [`docs/agentic-ai.md`](docs/agentic-ai.md) for how the AI pieces fit together and how
+the runtime agent differs from Claude Code's `.claude/` dev tooling.
 
 The application uses bcrypt password hashes, one-hour HS256 JWTs, role-based access control, and audit logging for protected customer and ticket actions.
 
@@ -96,10 +100,37 @@ Create `.env` in the project root:
 ```dotenv
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
 JWT_SECRET=replace-with-a-long-random-secret
+
+# Agent / chatbot (defaults shown)
+LLM_PROVIDER=gemini            # or: openrouter
+AGENT_MAX_STEPS=6
+
+# gemini
 GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.6-flash
+
+# openrouter (free models available; bring your own key)
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=openrouter/free
 ```
 
-`DATABASE_URL` and `JWT_SECRET` are required when the backend is imported or started. `GEMINI_API_KEY` is optional unless a Gemini script is used.
+`DATABASE_URL` and `JWT_SECRET` are required when the backend is imported or started.
+`LLM_PROVIDER` selects the agent's model backend (`backend/app/agent/llm/`): `gemini` needs
+`GEMINI_API_KEY`, `openrouter` needs `OPENROUTER_API_KEY`. See [`.env.example`](.env.example).
+
+### Using a free model via OpenRouter
+
+[OpenRouter](https://openrouter.ai) fronts many models, several **free**. There is no shared
+key — create your own (free) account:
+
+1. Sign in at <https://openrouter.ai> (Google/GitHub).
+2. **Keys → Create API Key**, copy the `sk-or-v1-...` value.
+3. In `.env`: `OPENROUTER_API_KEY=sk-or-v1-...` and `LLM_PROVIDER=openrouter`.
+4. Leave `OPENROUTER_MODEL=openrouter/free` (auto-routes to an available free tool-capable
+   model), or pin one from <https://openrouter.ai/models?max_price=0> that supports "Tools".
+
+Free models are still rate-limited per account (~20 req/min). The agent falls back to a
+"briefly rate-limited" reply when that happens.
 
 The `.env` file is ignored by Git. Do not commit database credentials or JWT secrets.
 
@@ -156,6 +187,7 @@ The API is available at `http://127.0.0.1:8000`.
 | `GET` | `/tickets` | Bearer JWT | List the authenticated customer's tickets |
 | `POST` | `/tickets` | Bearer JWT | Create a ticket for the authenticated customer |
 | `PATCH` | `/tickets/{ticket_id}/status` | Admin Bearer JWT | Open or close a ticket |
+| `POST` | `/agent/chat` | Bearer JWT | Talk to the self-service support agent |
 
 Login request:
 
@@ -203,8 +235,17 @@ npm start
 ```
 
 Open `http://localhost:4200`. The backend allows this development origin through
-its minimal CORS configuration. The frontend API base URL is defined once in
-`frontend/src/environments/environment.ts`.
+its minimal CORS configuration.
+
+The API base URL comes from `frontend/src/environments/`:
+
+- `npm start` (`ng serve`, the `development` build) uses `environment.development.ts` →
+  `http://localhost:8000`;
+- `npm run build` (the `production` build) uses `environment.ts` → the Azure backend.
+
+Pages: Dashboard, Profile, Tickets, **Assistant** (`/chat` — the self-service agent from
+`POST /agent/chat`), and Customers (admin). The assistant page needs `GEMINI_API_KEY` set
+on whichever backend the frontend points at.
 
 Build the production bundle with:
 
@@ -250,7 +291,37 @@ Set `GEMINI_API_KEY` in `.env`, then run:
 uv run python chatbot.py
 ```
 
-The chatbot authenticates through MCP, reads the support-policy resource and support prompt, discovers the available tools, and lets Gemini select customer-support operations. Tokens and customer IDs are injected by the local chatbot rather than exposed to the model as user-entered arguments.
+The chatbot authenticates through MCP, discovers the available tools, and lets Gemini
+select customer-support operations. Tokens and customer IDs are injected locally, never
+exposed to the model. The loop, prompt, and provider handling are shared with the HTTP
+agent below (`backend/app/agent/`).
+
+## Agentic AI
+
+Two separate things, explained in full in [`docs/agentic-ai.md`](docs/agentic-ai.md):
+
+- **The product agent** — `POST /agent/chat`, a customer-facing self-service assistant
+  (`backend/app/agent/`). It runs an LLM tool-loop over the service layer, scoped to the
+  authenticated caller: identity comes from the verified JWT, admin tools are not offered
+  to customers, and a `max_steps` cap bounds each turn. The endpoint is stateless — the
+  client sends the transcript back in `history` each turn.
+
+  ```bash
+  TOK=$(curl -s localhost:8000/auth/login -H 'Content-Type: application/json' \
+    -d '{"email":"ali@example.com","password":"5678"}' | jq -r .token)
+
+  curl -s localhost:8000/agent/chat -H "Authorization: Bearer $TOK" \
+    -H 'Content-Type: application/json' \
+    -d '{"message":"my password reset email never arrives, please open a ticket"}' | jq
+  ```
+
+  The LLM backend is pluggable via `LLM_PROVIDER` (`backend/app/agent/llm/`): `gemini` or
+  `openrouter` (free models — see below), with Claude/others as a one-file addition.
+
+- **The dev tooling** — `CLAUDE.md` and `.claude/` (skills, a `test-verifier` subagent,
+  permission settings) configure Claude Code as a coding assistant *on this repo*. This is
+  unrelated to `skills-lock.json`, which vendors external Supabase agent-skills through a
+  different tool.
 
 ## Authentication and auditing
 
@@ -297,30 +368,52 @@ The database integration test verifies that the configured server is PostgreSQL.
 
 These credentials are test fixtures only. Do not use them in a production database. `test_create_ticket` inserts a ticket and audit records are created by protected service calls, so run the suite against a test database rather than production.
 
-## Docker
+## Continuous integration / deployment
 
-Build and run the REST API with Docker Compose:
+`.github/workflows/backend-ci.yml` runs on pushes and pull requests to `main`:
+
+| Job | What |
+| --- | --- |
+| `test` | `pytest tests/ -m "not integration"` |
+| `integration-test` | `pytest tests/integration/ -m integration` (LLM smoke tests self-skip without keys) |
+| `frontend-build` | `npm ci && npm run build` for the Angular app (catches production-only breakage) |
+| `images` | builds the backend and frontend container images for **`linux/amd64`**; on a push to `main`, pushes both to GHCR |
+
+Published images (on merge to `main`):
+
+- `ghcr.io/fareselsobky99/customer-support-backend:latest` (and `:<commit-sha>`)
+- `ghcr.io/fareselsobky99/customer-support-frontend:latest` (and `:<commit-sha>`)
+
+Required repository secrets: `DATABASE_URL`, `JWT_SECRET`. Optional: `GEMINI_API_KEY`,
+`OPENROUTER_API_KEY` (only used to run the live LLM integration tests).
+
+### Deploying to Azure Container Apps
+
+The images target `linux/amd64` (what Azure Container Apps runs). **Do not `docker push`
+from an Apple-Silicon Mac** — that produces an `arm64` image that fails on Azure with
+`exec format error`. Let CI build and push, or build locally with
+`docker buildx build --platform linux/amd64 --push ...`.
+
+- **Backend** container needs env vars set in Azure: `DATABASE_URL`, `JWT_SECRET`, and (for
+  `/agent/chat`) `LLM_PROVIDER` + the matching key (`GEMINI_API_KEY` or
+  `OPENROUTER_API_KEY`, plus `OPENROUTER_MODEL`). It listens on port `8000`.
+- **Frontend** container is nginx serving the production Angular bundle, which is compiled
+  with the backend URL from `frontend/src/environments/environment.ts` — update that file
+  and rebuild if the backend URL changes. It listens on port `80`.
+- GHCR packages are private by default; give the Container App registry credentials (a
+  GitHub PAT with `read:packages`) or make the packages public.
+- After CI pushes `:latest`, trigger a new revision in Azure (or enable "latest" image
+  auto-update) to pick it up.
+
+## Docker (local)
 
 ```bash
 docker compose up --build
 ```
 
-The compose service reads `.env`, exposes port `8000`, and checks `/health` every 30 seconds.
+Runs the backend (`:8000`, reads `.env`) and the frontend (`:4200` → nginx `:80`). The
+compose frontend serves the **production** bundle, so it points at the Azure backend, not
+your local one — for local full-stack dev run the backend with uvicorn and the frontend
+with `npm start` instead (see "Run the Angular frontend").
 
-Stop it with:
-
-```bash
-docker compose down
-```
-
-## Continuous integration
-
-The GitHub Actions workflow runs on pushes and pull requests to `main`:
-
-1. install Python 3.11 and dependencies with uv;
-2. run tests excluding the explicit integration marker;
-3. run the PostgreSQL integration test;
-4. build the Docker image;
-5. on pushes to `main`, publish `ghcr.io/fareselsobky99/customer-support-api:latest`.
-
-The workflow requires repository secrets named `DATABASE_URL` and `JWT_SECRET`.
+Stop with `docker compose down`.

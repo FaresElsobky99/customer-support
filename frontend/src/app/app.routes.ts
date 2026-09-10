@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { Chat } from './components/chat/chat';
 import { Customers } from './components/customers/customers';
 import { Dashboard } from './components/dashboard/dashboard';
 import { Login } from './components/login/login';
@@ -12,6 +13,7 @@ export const routes: Routes = [
   { path: 'dashboard', component: Dashboard, canActivate: [authGuard] },
   { path: 'profile', component: Profile, canActivate: [authGuard] },
   { path: 'tickets', component: Tickets, canActivate: [authGuard] },
+  { path: 'chat', component: Chat, canActivate: [authGuard] },
   {
     path: 'customers',
     component: Customers,

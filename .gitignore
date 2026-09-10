@@ -35,3 +35,6 @@ coverage.xml
 # OS files
 .DS_Store
 Thumbs.db
+
+# Claude Code — share settings.json / skills / agents, keep personal overrides local
+.claude/settings.local.json
