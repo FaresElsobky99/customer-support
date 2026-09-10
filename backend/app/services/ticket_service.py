@@ -29,7 +29,34 @@ def create_ticket(
     }
 
 
-def list_tickets(customer_id: int, actor_customer_id: int, actor_role: str) -> dict:
+def _ticket_dict(ticket) -> dict:
+    return {
+        "ticket_id": ticket[0],
+        "customer_id": ticket[1],
+        "issue": ticket[2],
+        "status": ticket[3].lower(),
+    }
+
+
+def get_ticket(ticket_id: int, actor_customer_id: int, actor_role: str) -> dict:
+    audit_repository.log_action(actor_customer_id, actor_role, "get_ticket")
+    ticket = ticket_repository.find_by_id(ticket_id)
+
+    if ticket is None:
+        return {"error": "Ticket not found"}
+
+    if actor_role != "admin" and ticket[1] != actor_customer_id:
+        return {"error": "Not authorized"}
+
+    return _ticket_dict(ticket)
+
+
+def list_tickets(
+    customer_id: int,
+    actor_customer_id: int,
+    actor_role: str,
+    status: str | None = None,
+) -> dict:
     audit_repository.log_action(actor_customer_id, actor_role, "list_tickets")
     tickets = (
         ticket_repository.find_all()
@@ -37,17 +64,12 @@ def list_tickets(customer_id: int, actor_customer_id: int, actor_role: str) -> d
         else ticket_repository.find_by_customer_id(customer_id)
     )
 
-    return {
-        "tickets": [
-            {
-                "ticket_id": ticket[0],
-                "customer_id": ticket[1],
-                "issue": ticket[2],
-                "status": ticket[3].lower(),
-            }
-            for ticket in tickets
-        ]
-    }
+    result = [_ticket_dict(ticket) for ticket in tickets]
+    if status:
+        wanted = status.lower()
+        result = [ticket for ticket in result if ticket["status"] == wanted]
+
+    return {"tickets": result}
 
 
 def update_ticket_status(

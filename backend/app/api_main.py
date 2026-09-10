@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.routes import agent, auth, customers, tickets
 
-
 app = FastAPI(
     title="Customer Support API",
 )

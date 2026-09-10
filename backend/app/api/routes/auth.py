@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 from backend.app.services.customer_service import login as login_customer
 
-
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],

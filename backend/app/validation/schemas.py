@@ -1,6 +1,5 @@
 import re
 
-
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
@@ -49,3 +48,20 @@ def validate_ticket_issue(issue: str) -> str:
         raise ValidationError("Ticket issue must be between 5 and 1000 characters")
 
     return issue
+
+
+def validate_ticket_id(ticket_id: int) -> int:
+    if isinstance(ticket_id, bool) or not isinstance(ticket_id, int) or ticket_id <= 0:
+        raise ValidationError("ticket_id must be greater than 0")
+
+    return ticket_id
+
+
+TICKET_STATUSES = ("open", "closed")
+
+
+def validate_ticket_status(status: str) -> str:
+    if not isinstance(status, str) or status.strip().lower() not in TICKET_STATUSES:
+        raise ValidationError("status must be 'open' or 'closed'")
+
+    return status.strip().lower()

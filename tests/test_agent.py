@@ -9,6 +9,7 @@ import asyncio
 from fastapi.testclient import TestClient
 
 from backend.app.agent.auth import AuthContext
+from backend.app.agent.deps import get_rate_limiter, get_runner
 from backend.app.agent.llm.base import LLMRateLimitError
 from backend.app.agent.llm.openrouter import (
     _parse_response,
@@ -19,7 +20,6 @@ from backend.app.agent.runner import AgentRunner
 from backend.app.agent.tools.service_executor import ServiceToolExecutor
 from backend.app.agent.types import LLMResponse, Message, ToolCall, ToolDef, ToolResult
 from backend.app.api_main import app
-from backend.app.agent.deps import get_runner
 from backend.app.auth.jwt import create_token
 
 
@@ -131,18 +131,59 @@ def test_generic_llm_error_is_a_friendly_reply_not_a_crash():
     assert "404" not in result.reply  # no upstream detail leaked to the customer
 
 
-def test_service_executor_hides_admin_tool_from_customers():
+def test_service_executor_hides_admin_tools_from_customers():
     executor = ServiceToolExecutor()
 
     customer_tools = {t.name for t in executor.tool_defs(CUSTOMER)}
     admin_tools = {t.name for t in executor.tool_defs(ADMIN)}
 
-    assert "list_all_customers" not in customer_tools
-    assert "list_all_customers" in admin_tools
+    assert {"list_all_customers", "update_ticket_status"}.isdisjoint(customer_tools)
+    assert {"list_all_customers", "update_ticket_status"} <= admin_tools
+    assert {"get_customer", "create_ticket", "list_tickets", "get_ticket"} <= customer_tools
     # no tool ever exposes identity arguments
     for tool in executor.tool_defs(ADMIN):
         assert "token" not in tool.parameters.get("properties", {})
         assert "customer_id" not in tool.parameters.get("properties", {})
+
+
+def test_service_executor_rejects_admin_tool_call_from_a_customer():
+    executor = ServiceToolExecutor()
+    call = ToolCall("x", "update_ticket_status", {"ticket_id": 1, "status": "closed"})
+
+    result = asyncio.run(executor.execute(call, CUSTOMER))
+
+    assert result.is_error
+    assert "Admin access required" in result.content
+
+
+def test_rate_limiter_allows_burst_then_blocks():
+    from backend.app.agent.ratelimit import RateLimiter
+
+    limiter = RateLimiter(per_minute=60, burst=3)
+
+    allowed = [limiter.check(customer_id=42)[0] for _ in range(5)]
+    assert allowed == [True, True, True, False, False]
+    # a different customer has their own bucket
+    assert limiter.check(customer_id=99)[0] is True
+
+    _, retry_after = limiter.check(customer_id=42)
+    assert retry_after > 0
+
+
+class _AllowAll:
+    def check(self, customer_id):
+        return True, 0.0
+
+
+def _override(runner=None, limiter=None):
+    if runner is not None:
+        app.dependency_overrides[get_runner] = lambda: runner
+    app.dependency_overrides[get_rate_limiter] = lambda: limiter or _AllowAll()
+
+
+def _clear_overrides():
+    app.dependency_overrides.pop(get_runner, None)
+    app.dependency_overrides.pop(get_rate_limiter, None)
 
 
 def test_chat_endpoint_with_faked_runner():
@@ -152,7 +193,7 @@ def test_chat_endpoint_with_faked_runner():
             LLMResponse(text="I've opened a ticket for you.", tool_calls=()),
         ]
     )
-    app.dependency_overrides[get_runner] = lambda: AgentRunner(llm, FakeExecutor())
+    _override(runner=AgentRunner(llm, FakeExecutor()))
     try:
         client = TestClient(app)
         token = create_token(7, "customer")
@@ -168,7 +209,6 @@ def test_chat_endpoint_with_faked_runner():
         assert body["tool_calls"] == ["create_ticket"]
         assert [t["role"] for t in body["history"]] == ["user", "assistant"]
 
-        # resend the transcript for a follow-up turn
         second = client.post(
             "/agent/chat",
             headers={"Authorization": f"Bearer {token}"},
@@ -177,7 +217,28 @@ def test_chat_endpoint_with_faked_runner():
         assert second.status_code == 200
         assert len(second.json()["history"]) == 4
     finally:
-        app.dependency_overrides.pop(get_runner, None)
+        _clear_overrides()
+
+
+def test_chat_endpoint_rate_limits_per_customer():
+    from backend.app.agent.ratelimit import RateLimiter
+
+    llm = FakeLLM([LLMResponse(text="ok", tool_calls=())])
+    _override(runner=AgentRunner(llm, FakeExecutor()), limiter=RateLimiter(per_minute=60, burst=2))
+    try:
+        client = TestClient(app)
+        token = create_token(7, "customer")
+        codes = [
+            client.post(
+                "/agent/chat",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"message": "hi"},
+            ).status_code
+            for _ in range(4)
+        ]
+        assert codes == [200, 200, 429, 429]
+    finally:
+        _clear_overrides()
 
 
 def test_chat_endpoint_requires_auth():
@@ -187,9 +248,7 @@ def test_chat_endpoint_requires_auth():
 
 
 def test_chat_endpoint_rejects_oversized_history():
-    app.dependency_overrides[get_runner] = lambda: AgentRunner(
-        FakeLLM([LLMResponse(text="unused", tool_calls=())]), FakeExecutor()
-    )
+    _override(runner=AgentRunner(FakeLLM([LLMResponse(text="x", tool_calls=())]), FakeExecutor()))
     try:
         client = TestClient(app)
         token = create_token(7, "customer")
@@ -201,7 +260,7 @@ def test_chat_endpoint_rejects_oversized_history():
         )
         assert response.status_code == 422
     finally:
-        app.dependency_overrides.pop(get_runner, None)
+        _clear_overrides()
 
 
 def test_mcp_executor_is_error_only_on_error_key():

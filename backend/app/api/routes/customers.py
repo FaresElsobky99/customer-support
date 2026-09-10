@@ -6,7 +6,6 @@ from backend.app.services.customer_service import (
     list_all_customers,
 )
 
-
 router = APIRouter(
     prefix="/customers",
     tags=["customers"],

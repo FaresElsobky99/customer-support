@@ -104,6 +104,8 @@ JWT_SECRET=replace-with-a-long-random-secret
 # Agent / chatbot (defaults shown)
 LLM_PROVIDER=gemini            # or: openrouter
 AGENT_MAX_STEPS=6
+AGENT_RATE_PER_MIN=10          # per-customer rate limit on /agent/chat
+AGENT_RATE_BURST=5
 
 # gemini
 GEMINI_API_KEY=your-gemini-api-key
@@ -184,10 +186,11 @@ The API is available at `http://127.0.0.1:8000`.
 | `POST` | `/auth/login` | None | Authenticate and receive a JWT |
 | `GET` | `/customers/me` | Bearer JWT | Return the authenticated customer |
 | `GET` | `/customers` | Admin Bearer JWT | List every customer |
-| `GET` | `/tickets` | Bearer JWT | List the authenticated customer's tickets |
+| `GET` | `/tickets` | Bearer JWT | List tickets (own for a customer, all for an admin); `?status=open\|closed` filters |
+| `GET` | `/tickets/{ticket_id}` | Bearer JWT | Get one ticket the caller is allowed to see |
 | `POST` | `/tickets` | Bearer JWT | Create a ticket for the authenticated customer |
 | `PATCH` | `/tickets/{ticket_id}/status` | Admin Bearer JWT | Open or close a ticket |
-| `POST` | `/agent/chat` | Bearer JWT | Talk to the self-service support agent |
+| `POST` | `/agent/chat` | Bearer JWT | Talk to the self-service support agent (per-customer rate limited) |
 
 Login request:
 
@@ -276,10 +279,14 @@ uv run python client.py
 | Tool | `login` | Authenticate and return a JWT |
 | Tool | `get_customer` | Read an authorized customer record |
 | Tool | `create_ticket` | Create a ticket for an active customer |
-| Tool | `list_tickets` | List an authorized customer's tickets |
+| Tool | `list_tickets` | List authorized tickets, optionally filtered by status |
+| Tool | `get_ticket` | Read one ticket by id |
 | Tool | `list_all_customers` | List customers as an admin |
+| Tool | `update_ticket_status` | Open or close a ticket (admin) |
 | Resource | `file://support-policy` | Return `support_policy.txt` |
+| Resource | `file://faq` | Return the support knowledge base (`knowledge/faq.md`) |
 | Prompt | `support_prompt` | Build a support workflow prompt for an issue |
+| Prompt | `triage_prompt` | Build a ticket-triage workflow prompt (admin) |
 
 MCP validation checks email format, password presence, positive customer IDs, non-empty names, and trimmed ticket issues between 5 and 1000 characters.
 
@@ -336,8 +343,13 @@ Protected actions are written to `audit_logs`. Currently audited operations are:
 - `get_customer`;
 - `create_ticket`;
 - `list_tickets`;
+- `get_ticket`;
 - `list_all_customers`;
 - `update_ticket_status`.
+
+Each `POST /agent/chat` turn writes one structured JSON log line
+(`customer_support.agent` logger): customer id, provider/model, tool calls, step
+count, stop reason, and duration. No message content is logged.
 
 ## Tests
 

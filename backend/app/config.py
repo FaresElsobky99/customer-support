@@ -3,10 +3,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = PROJECT_ROOT / ".env"
 SUPPORT_POLICY_PATH = PROJECT_ROOT / "support_policy.txt"
+KNOWLEDGE_DIR = PROJECT_ROOT / "knowledge"
+FAQ_PATH = KNOWLEDGE_DIR / "faq.md"
 
 load_dotenv(ENV_FILE)
 

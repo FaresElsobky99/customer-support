@@ -1,20 +1,32 @@
+# ---- build: resolve the dependency venv with uv ----
+FROM python:3.11-slim AS build
+
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+WORKDIR /app
+RUN pip install --no-cache-dir uv
+
+# README.md is copied because pyproject.toml references it.
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev
+
+
+# ---- runtime ----
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
 
+# Run as a non-root user.
+RUN useradd --create-home --uid 1000 app
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+COPY --from=build --chown=app:app /app/.venv /app/.venv
+COPY --chown=app:app . .
 
-# Dependency layer — cached unless the manifests change. README.md is copied
-# because pyproject.toml references it.
-COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen
-
-COPY . .
-
+USER app
 EXPOSE 8000
 
-# --no-sync: the venv is already built above; don't touch it at container start.
-CMD ["uv", "run", "--no-sync", "uvicorn", "backend.app.api_main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.app.api_main:app", "--host", "0.0.0.0", "--port", "8000"]

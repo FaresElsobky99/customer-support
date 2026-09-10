@@ -17,6 +17,20 @@ def create(customer_id: int, issue: str) -> int:
     return row[0]
 
 
+def find_by_id(ticket_id: int):
+    with get_db_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, customer_id, issue, status
+                FROM tickets
+                WHERE id = %s
+                """,
+                (ticket_id,),
+            )
+            return cursor.fetchone()
+
+
 def find_by_customer_id(customer_id: int):
     with get_db_connection() as connection:
         with connection.cursor() as cursor:

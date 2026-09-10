@@ -2,7 +2,6 @@ import pytest
 
 from backend.app.database.connection import get_db_connection
 
-
 pytestmark = pytest.mark.integration
 
 
