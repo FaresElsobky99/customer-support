@@ -9,6 +9,7 @@ dependencies = [
     "bcrypt>=5.0.0",
     "fastapi>=0.141.1",
     "google-genai>=2.20.0",
+    "httpx>=0.28.0",
     "mcp>=2.0.0",
     "psycopg[binary]>=3.3.4",
     "pyjwt>=2.13.0",
@@ -16,6 +17,12 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "uvicorn>=0.52.4",
 ]
+
+# The agent's LLM provider is pluggable (backend/app/agent/llm/). Gemini is the default and
+# needs no extra install. When backend/app/agent/llm/claude.py is added, move `anthropic`
+# out of the dependencies above into an optional extra:
+#   [project.optional-dependencies]
+#   claude = ["anthropic>=1.0.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

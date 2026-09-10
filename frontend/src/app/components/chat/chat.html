@@ -1,0 +1,81 @@
+<section>
+  <div class="page-heading page-heading--row">
+    <div>
+      <p class="eyebrow">Support</p>
+      <h1>Assistant</h1>
+      <p>Ask a question or describe an issue. The assistant can look up and open tickets for you.</p>
+    </div>
+    @if (messages().length > 0) {
+      <button class="button button--small button--secondary" type="button" (click)="clear()">
+        New chat
+      </button>
+    }
+  </div>
+
+  <div class="card chat-card">
+    <div class="chat-log" #anchor>
+      @if (messages().length === 0) {
+        <div class="chat-empty">
+          <p>Try one of these:</p>
+          <div class="chat-suggestions">
+            @for (suggestion of suggestions; track suggestion) {
+              <button
+                class="chip"
+                type="button"
+                [disabled]="sending()"
+                (click)="useSuggestion(suggestion)"
+              >
+                {{ suggestion }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @for (message of messages(); track $index) {
+        <div class="bubble bubble--{{ message.role }}">
+          <span class="bubble__role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
+          <p class="bubble__text">{{ message.content }}</p>
+
+          @if (message.tools && message.tools.length > 0) {
+            <p class="bubble__tools">
+              @for (tool of message.tools; track $index) {
+                <span class="badge">{{ tool }}</span>
+              }
+            </p>
+          }
+          @if (message.note) {
+            <p class="bubble__note">{{ message.note }}</p>
+          }
+        </div>
+      }
+
+      @if (sending()) {
+        <div class="bubble bubble--assistant">
+          <span class="bubble__role">Assistant</span>
+          <p class="bubble__text bubble__text--typing">Thinking…</p>
+        </div>
+      }
+    </div>
+
+    @if (error()) {
+      <p class="message message--error" role="alert">{{ error() }}</p>
+    }
+
+    <form class="chat-input" (ngSubmit)="send()">
+      <label class="sr-only" for="chat-message">Message</label>
+      <textarea
+        id="chat-message"
+        name="chat-message"
+        rows="2"
+        placeholder="Type your message…"
+        [(ngModel)]="draft"
+        [disabled]="sending()"
+        (keydown.enter)="$event.preventDefault(); send()"
+      ></textarea>
+      <button class="button button--primary" type="submit" [disabled]="sending() || !draft.trim()">
+        {{ sending() ? 'Sending…' : 'Send' }}
+      </button>
+    </form>
+  </div>
+</section>
